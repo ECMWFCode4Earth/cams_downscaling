@@ -1,0 +1,22 @@
+name: model
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - ipykernel
+  - pyyaml
+  - numpy
+  - pandas
+  - pyarrow
+  - netcdf4
+  - matplotlib
+  - scipy
+  - scikit-learn
+  - xarray
+  - ipywidgets
+  - cartopy
+  - imageio
+  - cvxpy
+  - pyscipopt
+  - rasterio
+  - pytorch

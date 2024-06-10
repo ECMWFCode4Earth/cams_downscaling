@@ -24,10 +24,8 @@ def download(year: int, months: list):
             'product_type': 'reanalysis',
             'format': 'grib',
             'variable': [
-                '10m_u_component_of_wind', '10m_v_component_of_wind', '2m_dewpoint_temperature',
-                '2m_temperature', 'boundary_layer_height', 'instantaneous_eastward_turbulent_surface_stress',
-                'instantaneous_northward_turbulent_surface_stress', 'surface_net_solar_radiation', 'total_precipitation',
-                'standard_deviation_of_orography',
+                'boundary_layer_height', 'instantaneous_eastward_turbulent_surface_stress',
+                'instantaneous_northward_turbulent_surface_stress'
             ],
             'year': str(year),
             'month': months,
