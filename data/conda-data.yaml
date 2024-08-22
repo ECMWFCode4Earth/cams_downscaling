@@ -1,0 +1,22 @@
+name: data
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pandas
+  - numpy
+  - xarray
+  - cfgrib
+  - matplotlib
+  - cartopy
+  - netCDF4
+  - geopandas
+  - pyogrio # geopandas engine
+  - rasterio
+  - dask
+  - rioxarray
+  - pyarrow
+  - pip:
+    - fastkml
+    - cdsapi

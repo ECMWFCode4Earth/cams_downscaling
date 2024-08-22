@@ -52,7 +52,7 @@ def download(year: int, month: int):
                 73, -19, 33, 34,
             ]
         },
-        f'/home/urbanaq/data/era5_land/{args.year}/{month:02d}.grib')
+        f'/home/urbanaq/data/era5_land/{year}/{month:02d}.grib')
     
     end = time.perf_counter()
     
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
         print(f'Starting data download for {args.year} - 4 threads...')
 
-        for month in range(1, 2):
+        for month in range(2, 13):
             tasks.append(tp.submit(download, args.year, month))
 
         for task in concurrent.futures.as_completed(tasks):

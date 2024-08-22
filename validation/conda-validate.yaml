@@ -1,18 +1,13 @@
-name: preprocessor
+name: validator
 channels:
   - conda-forge
 dependencies:
   - python=3.12
-  - pip
   - pandas
   - numpy
   - xarray
-  - cfgrib
   - matplotlib
   - cartopy
-  - netCDF4
+  - mysqlclient
   - geopandas
-  - pyogrio # geopandas engine
-  - rasterio
-  - pip:
-    - fastkml
+  - pyyaml

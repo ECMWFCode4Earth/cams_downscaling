@@ -1,4 +1,4 @@
-name: model
+name: aquv
 channels:
   - conda-forge
 dependencies:
@@ -20,3 +20,9 @@ dependencies:
   - pyscipopt
   - rasterio
   - pytorch
+  - h5py
+  - pykrige
+  - pip
+  - pip:
+    - mysqlclient
+  

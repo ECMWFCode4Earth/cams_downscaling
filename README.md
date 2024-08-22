@@ -1,0 +1,5 @@
+- `cams_downscaling`: the AI model
+- `config`: files with config needed for the AI model and validation
+- `data`: scripts to download and preprocess all the data
+- `model_exploration`: notebook used to "play" with the model
+- `validation`: scripts to validate the model

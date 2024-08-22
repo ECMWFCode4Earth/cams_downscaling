@@ -1,0 +1,37 @@
+country_codes:
+  Spain: ES
+  Portugal: PT
+  Andorra: AD
+  Italy: IT
+  Poland: PL
+
+cluster_names:
+  100: "Zaragoza"
+  101: "Madrid"
+  102: "Algeciras"
+  103: "Huelva"
+  104: "Sevilla"
+  105: "Avilés"
+  106: "Gijón"
+  107: "Valladolid"
+  108: "Barcelona"
+  109: "Tarragona"
+  1010: "Valencia"
+  1011: "Castellón de la Plana"
+  1012: "A Coruña"
+  1013: "Bilbao"
+  1014: "Erandio"
+  1015: "San Sebastián"
+  200: "Lisboa"
+  201: "Porto"
+  400: "Genoa"
+  401: "Civitavecchia"
+  402: "Rome"
+  403: "Naples"
+  404: "La Spezia"
+  405: "Savona"
+  406: "Syracuse"
+  500: "Kraków"
+  501: "Warsaw"
+  502: "Gdańsk"
+  503: "Katowice"

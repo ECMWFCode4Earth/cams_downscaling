@@ -10,7 +10,7 @@ REGIONS = {
                "max_lon": 4.5}
 }
 
-file = "/home/urbanaq/data/era5/era5.nc"
+file = "/home/urbanaq/data/era5/2023/era5.nc"
 region = "IBERIA"
 region_bbox = REGIONS[region]
 
@@ -20,4 +20,4 @@ mask_lon = (dataset.longitude >= region_bbox["min_lon"]) & (dataset.longitude <=
 mask_lat = (dataset.latitude >= region_bbox["min_lat"]) & (dataset.latitude <= region_bbox["max_lat"])
 
 dataset = dataset.where(mask_lon & mask_lat, drop=True)
-dataset.to_netcdf(str(Path("/home/urbanaq/data/era5") / f"era5_{region}.nc"))
+dataset.to_netcdf(str(Path("/home/urbanaq/data/era5/2023") / f"era5_{region}.nc"))

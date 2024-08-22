@@ -20,7 +20,8 @@ class Variable(NamedTuple):
     has_negative_values: bool = False
 
 
-ENDPOINT_URL = "https://eeadmz1-downloads-api-appservice.azurewebsites.net/ParquetFile"
+# ENDPOINT_URL = "https://eeadmz1-downloads-api-appservice.azurewebsites.net/ParquetFile"
+ENDPOINT_URL = "https://eeadmz1-downloads-webapp.azurewebsites.net/ParquetFile"
 VOCABULARY_POLLUTANT_URL = "http://dd.eionet.europa.eu/vocabulary/aq/pollutant/"
 STORAGE_PATH = "/home/urbanaq/data/eea"
 
@@ -106,6 +107,8 @@ def download_parquet(country: str, vars: list[Variable], dataset: int) -> zipfil
         "source": "Api"
     }
 
+    print(request_body)
+
     req = requests.post(ENDPOINT_URL, json=request_body)
 
     if req.status_code != 200:
@@ -152,7 +155,7 @@ def get_stations() -> pd.DataFrame:
     """
     Gets the code and sampling point of all avaiable stations
     """
-    stations = pd.read_csv(f'stations.csv', 
+    stations = pd.read_csv(f'{STORAGE_PATH}/stations.csv', 
                            usecols=["Country", "Air Quality Station EoI Code", "Sampling Point Id"],
                            index_col="Sampling Point Id").squeeze("columns")
     
@@ -230,15 +233,14 @@ def get_station_data(df: pd.DataFrame) -> Generator[tuple[str, pd.DataFrame], No
         df.drop(station, inplace=True)
         yield station, data
 
-def save_data(df: pd.DataFrame, country: str):
+def save_data(df: pd.DataFrame, year: int, country: str):
     """
     Save the data of a certain country in CSV format in the data directory
     """
-    df.to_csv(f"{STORAGE_PATH}/{country}.csv", index=False)
+    df.to_csv(f"{STORAGE_PATH}/{year}/{country}.csv", index=False)
 
 def parse_country(country: str, 
-                  data_start: dt.datetime | pd.Timestamp | None, 
-                  data_end: dt.datetime | pd.Timestamp | None,
+                  year: int,
                   stations: list[str] | None = None, 
                   dataset: int = DATASET_REALTIME_UNVALIDATED):
     """
@@ -253,6 +255,9 @@ def parse_country(country: str,
 
     if not zip_parquet:
         return
+    
+    data_start = pd.to_datetime(f"{year}-01-01 00:00:00")
+    data_end = pd.to_datetime(f"{year}-12-31 23:00:00")
 
     df = read_zip_file(zip_parquet, data_start, data_end)
     del zip_parquet
@@ -297,7 +302,7 @@ def parse_country(country: str,
         continue
 
     country_data = pd.concat(country_data)
-    save_data(country_data, country)
+    save_data(country_data, year, country)
 
     logger.info(f"{'*' * 4} Finished processing {country} {'*' * 4}")
 
@@ -306,9 +311,8 @@ def main():
     logger = logging.getLogger(__name__)
 
     parser = ArgumentParser()
-    parser.add_argument("--days", type=int, default=None, help="Number of days to update")
-    parser.add_argument("--since", type=str, default=None, help="First date (start of day - UTC). Format: YYYY-MM-DD")
-    parser.add_argument("--until", type=str, default=None, help="Last date (end of day - UTC). Format: YYYY-MM-DD")
+    # parser.add_argument("--days", type=int, default=None, help="Number of days to update")
+    parser.add_argument("--years", nargs='*', type=int, help="List of years to download")
     parser.add_argument('--stations', nargs='*', default=None, type=str, help="List of stations to download")
     parser.add_argument('--countries', nargs='*', default=None, type=str, help="List of countries to download")
     parser.add_argument('--dataset', type=str, default='DATASET_REALTIME_UNVALIDATED', choices=['DATASET_REALTIME_UNVALIDATED', 'DATASET_VALIDATED_E1A', 'DATASET_HISTORICAL_AIRBASE'], help="Dataset to download")
@@ -316,33 +320,19 @@ def main():
 
     dataset = globals()[args.dataset]
 
-    if args.since and args.days:
-        raise ValueError("You cannot use both --since and --days")
+    # if args.since and args.days:
+    #     raise ValueError("You cannot use both --since and --days")
     
-    data_start = None
-    if args.days:
-        data_start = pd.to_datetime(dt.date.today() - pd.Timedelta(days=args.days))
-    elif args.since:
-        try:
-            dt.datetime.strptime(args.since, "%Y-%m-%d")
-        except ValueError:
-            raise ValueError("Incorrect date format. Use YYYY-MM-DD")
-        
-        data_start = pd.to_datetime(f"{args.since} 00:00:00")
-
-    data_end = None
-    if args.until:
-        try:
-            dt.datetime.strptime(args.until, "%Y-%m-%d")
-        except ValueError:
-            raise ValueError("Incorrect date format. Use YYYY-MM-DD")
-        
-        data_end = pd.to_datetime(f"{args.until} 23:59:59")
+    # data_start = None
+    # if args.days:
+    #     data_start = pd.to_datetime(dt.date.today() - pd.Timedelta(days=args.days))
 
     if args.countries:
         countries = args.countries
     else:
         countries = COUNTRIES.keys()
+    
+    years = args.years
 
     stations = args.stations
     global all_stations
@@ -351,12 +341,12 @@ def main():
     logger.info("Starting download of EEA data")
 
     for country in countries:
-        try:
-            parse_country(country, data_start, data_end, stations, dataset)
-        except Exception as e:
-            logger.warning(e)
-            continue
-
+        for year in years:
+            try:
+                parse_country(country, year, stations, dataset)
+            except Exception as e:
+                logger.warning(e)
+                continue
 
 
 if __name__ == "__main__":

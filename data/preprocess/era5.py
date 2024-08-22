@@ -4,7 +4,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy as cp
 
-DATA_FOLDER = "/home/urbanaq/data/era5"
+DATA_FOLDER = "/home/urbanaq/data/era5/2023"
 
 paths = [f for f in sorted(Path(DATA_FOLDER).glob("**/*")) if (f.is_file() and not 'idx' in str(f))]
 
