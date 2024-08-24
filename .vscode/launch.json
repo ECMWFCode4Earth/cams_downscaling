@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run model",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cams_downscaling.run_model",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
+        },
+
+        {
             "name": "Download EEA",
             "type": "debugpy",
             "request": "launch",

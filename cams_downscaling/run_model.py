@@ -19,89 +19,57 @@ from .readers.era5_land import load_era5_land
 from .readers import eea
 from .utils import read_config
 
-# The 4th number of all versions is version_to_run needs to be the same
-versions_to_run = ['1000', '1010', '1020', '1030', '1040', '1060', '1070', '1080', '1090', '1100']
-#versions_to_run = ['1001', '1011', '1021', '1031', '1041', '1061', '1071', '1081', '1091', '1101']
-#versions_to_run = ['1002', '1012', '1022', '1032', '1042', '1062', '1072', '1082', '1092', '1102']
-#countries = ['Poland']
-countries = ['Spain', 'Portugal']
 
-#TODO: Gereralize region definition, depending on the countries
-region = 'iberia'#'poland'
+# VERSION NUMBERING:
+# 1st number: 1 for NO2
+pollutant_code = 1
+# 2nd - 3rd number: combination of datasets
+datasets_to_run = ["00", "01", "02", "03", "04", "06", "07", "08", "09", "10"] # 2nd - 3rd number
+# 4th number: 0 for 2022 and 2023, 1 for 2022, 2 for 2023
+year_code = 0
+# 5th number: None for Iberia, 1 for Italy, 2 for Poland
+region_code = 1
 
-model_versions = {
-    '1000': ['topography','land_use'], # 2022 and 2023
-    '1010': ['topography','land_use','era5_land','era5'],
-    '1020': ['topography','land_use','population'],
-    '1030': ['topography','land_use','height'],
-    '1040': ['topography','land_use','era5_land','era5','population','height'],
-    '1050': [],
-    '1060': ['topography'],
-    '1070': ['land_use'],
-    '1080': ['topography','land_use', 'roads'], # 2022 and 2023
-    '1090': ['topography','land_use','era5_land','era5','population','height','roads'],
-    '1100': ['roads'],
-
-    '1001': ['topography','land_use'], # 2022
-    '1011': ['topography','land_use','era5_land','era5'],
-    '1021': ['topography','land_use','population'],
-    '1031': ['topography','land_use','height'],
-    '1041': ['topography','land_use','era5_land','era5','population','height'],
-    '1051': [],
-    '1061': ['topography'],
-    '1071': ['land_use'],
-    '1081': ['topography','land_use', 'roads'], # 2022
-    '1091': ['topography','land_use','era5_land','era5','population','height','roads'],
-    '1101': ['roads'],
-
-    '1002': ['topography','land_use'], # 2022
-    '1012': ['topography','land_use','era5_land','era5'],
-    '1022': ['topography','land_use','population'],
-    '1032': ['topography','land_use','height'],
-    '1042': ['topography','land_use','era5_land','era5','population','height'],
-    '1052': [],
-    '1062': ['topography'],
-    '1072': ['land_use'],
-    '1082': ['topography','land_use', 'roads'], # 2022
-    '1092': ['topography','land_use','era5_land','era5','population','height','roads'],
-    '1102': ['roads'],
+# DON'T change it, just add new combinations as needed
+datasets_combinations = {
+    '00': ['topography','land_use'], 
+    '01': ['topography','land_use','era5_land','era5'],
+    '02': ['topography','land_use','population'],
+    '03': ['topography','land_use','height'],
+    '04': ['topography','land_use','era5_land','era5','population','height'],
+    '05': [],
+    '06': ['topography'],
+    '07': ['land_use'],
+    '08': ['topography','land_use', 'roads'], 
+    '09': ['topography','land_use','era5_land','era5','population','height','roads'],
+    '10': ['roads']
 }
 
-model_versions_years = {
+# AUTOMATIC GENERATION OF VERSIONS BASED ON ABOVE
+model_versions = {
+    f"{pollutant_code}{combination}{year_code}{region_code if region_code else ''}": datasets_combinations[combination] for combination in datasets_to_run
+}
+
+if not region_code:
+    region = 'iberia'
+    countries = ["Spain", "Portugal"]
+elif region_code == 1:
+    region = 'italy'
+    countries = ["Italy"]
+elif region_code == 2:
+    region = 'poland'
+    countries = ["Poland"]
+else:
+    raise ValueError('Countries not defined for the region selected')
+
+years = {
     0: [2022, 2023],
     1: [2022],
     2: [2023]
-}
-
-country_codes = {
-    'Spain': 'ES',
-    'Portugal': 'PT',
-    'Andorra': 'AD',
-    'Italy': 'IT',
-    'Poland': 'PL',
-}
-
-needed_sources = list({var for version in versions_to_run for var in model_versions[version]})
-
-if False in [versions_to_run[i] in model_versions.keys() for i in range(len(versions_to_run))]:
-    raise ValueError('Some versions are not defined in model_versions')
-
-# Check that the last number of all versions is version_to_run is the same
-if len(set([version[-1] for version in versions_to_run])) != 1:
-    raise ValueError('The last number of all versions is version_to_run needs to be the same')
-
-sources_vars = {'topography': ['elevation'],
-                'land_use': ['land'],
-                'population': ['population'],
-                'height': ['height'],
-                'roads': ['roads'],
-                'era5': ['d2m','ssr','t2m','tp','v10','u10'],
-                'era5_land': ['blh','iews','inss']}
+}[year_code]
 
 config = read_config('/home/urbanaq/cams_downscaling/config')
-variable = 'NO2'
-
-new_resolution = 0.01
+variable = config['pollutants']['pollutants'][pollutant_code]
 
 sources = {'topography': 'topography',
            'land_cover': 'corine',
@@ -112,6 +80,7 @@ sources = {'topography': 'topography',
            'era5': 'era5',
            'era5_land': 'era5_land'}
 
+
 def eea_stations(countries) -> tuple[pd.DataFrame, pd.DataFrame]:
     print('Loading stations and observations from EEA')
 
@@ -121,11 +90,15 @@ def eea_stations(countries) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     stations, observations = eea.load_eea_data(stations=stations,
                                                pollutant=variable,
-                                               years=model_versions_years[int(versions_to_run[0][3])],
+                                               years=years,
                                                countries=countries,
                                                data_path=Path(config['paths']['stations']))
 
     stations = eea.get_clusters(stations)
+    for cluster in stations.cluster.unique():
+        # Check how many rows are in each cluster and delete those with less than 2 rows
+        if stations[stations.cluster == cluster].shape[0] < 2:
+            stations = stations[stations.cluster != cluster]
     observations = observations.join(stations['cluster'], on='station', how='inner')
     observations = eea.fill_missing_values(observations, variable=variable)
 
@@ -214,6 +187,7 @@ def get_height(region_box, stations):
     return get_some_static_data('height')(stations, region_box)
 
 def get_land_cover(region_box, stations):
+    print(f'Loading land cover data')
     land_use = pd.concat([
     load_corine(
         config['paths']['land_cover'],
@@ -272,7 +246,7 @@ def get_era5(observations, stations):
 def get_era5_land(observations, stations):
     print('Loading ERA5-Land data')
     dates = observations.index.get_level_values('time').unique()
-    era5_land = load_era5_land(config['paths']['era5_land'], region, dates)
+    era5_land = load_era5_land(Path(config['paths']['era5_land']), region, dates)
     era5_land = era5_land.interpolate(
         lat=stations.sort_index()['Latitude'],
         lon=stations.sort_index()['Longitude'],
@@ -415,7 +389,7 @@ def main():
 
     start = time.time()
 
-    for version in versions_to_run:
+    for version in model_versions.keys():
         
         print(f'Running model version {version}')
         _, test_dataset, X_train, y_train, X_test, y_test = get_model_sets(

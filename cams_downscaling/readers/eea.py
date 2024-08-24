@@ -16,7 +16,7 @@ COUNTRY_CODES = config["places"]["country_codes"]
 
 def load_stations(countries: list[str], bbox: dict, data_path: Path) -> pd.DataFrame:
     stations = pd.read_csv(
-        data_path + '/stations.csv',
+        data_path / 'stations.csv',
         usecols=["Air Quality Station EoI Code", "Longitude", "Latitude", "Country"],
         index_col="Air Quality Station EoI Code"
     )
