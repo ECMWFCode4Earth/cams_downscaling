@@ -1,8 +1,10 @@
+"""
+Reads all the GRIBS downloaded from the CDS and generates a single NetCDF file
+"""
 from pathlib import Path
 
 import xarray as xr
-import matplotlib.pyplot as plt
-import cartopy as cp
+
 
 DATA_FOLDER = "/home/urbanaq/data/era5/2023"
 

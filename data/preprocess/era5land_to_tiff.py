@@ -1,3 +1,8 @@
+""" 
+Reads the netcdf file for a region with the ERA5-Land data (`era5land_generate_nc_region.py`) and saves each variable as a separate tiff file.
+
+The tiff files have the latitudes inverted, so they need to be flipped using `era5land_reorder_coords.py`.
+"""
 import os
 
 import numpy as np
@@ -5,12 +10,11 @@ import xarray as xr
 from PIL import Image
 
 
-region = "iberia"
-file = f"/home/urbanaq/data/era5_land/era5_land_{region.upper()}.nc"
-output_folder = "/data1/data_prep/era5_land/{variable}/{region}"
+region = "poland"
+file = f"/home/urbanaq/data/era5_land/era5_land_{region}.nc"
+output_folder = "/data1/data_prep/era5_land_old/{variable}/{region}"
 
 variables = ["u10", "v10", "t2m", "ssr", "tp", "d2m"]
-variables = ["d2m"]
 
 xds = xr.open_dataset(file)
 

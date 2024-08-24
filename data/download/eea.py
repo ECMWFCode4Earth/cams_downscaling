@@ -20,8 +20,8 @@ class Variable(NamedTuple):
     has_negative_values: bool = False
 
 
-# ENDPOINT_URL = "https://eeadmz1-downloads-api-appservice.azurewebsites.net/ParquetFile"
-ENDPOINT_URL = "https://eeadmz1-downloads-webapp.azurewebsites.net/ParquetFile"
+ENDPOINT_URL = "https://eeadmz1-downloads-api-appservice.azurewebsites.net/ParquetFile"
+#ENDPOINT_URL = "https://eeadmz1-downloads-webapp.azurewebsites.net/ParquetFile"
 VOCABULARY_POLLUTANT_URL = "http://dd.eionet.europa.eu/vocabulary/aq/pollutant/"
 STORAGE_PATH = "/home/urbanaq/data/eea"
 

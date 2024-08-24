@@ -1,3 +1,6 @@
+""" 
+Reads the KML file with the E-PRTR data and extracts the coordinates of the points.
+"""
 from pathlib import Path
 
 import pandas as pd

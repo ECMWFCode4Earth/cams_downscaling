@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.cluster import DBSCAN
 
 from .utils import read_config, get_db_connection
-from .readers.eea import read_eea_data
+from .readers.eea import load_eea_data
 
 
 countries = ['Spain', 'Portugal']
@@ -74,6 +74,6 @@ def update_db(stations: pd.DataFrame):
 
 def main():
     data_path = CONFIG['data_path']
-    stations, _ = read_eea_data('NO2', [2019], countries, CONFIG['bbox'][region], data_path)
+    stations, _ = load_eea_data('NO2', [2019], countries, CONFIG['bbox'][region], data_path)
     stations = clusterize(stations)
     update_db(stations)

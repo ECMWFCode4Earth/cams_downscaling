@@ -1,13 +1,9 @@
-import os
+import time
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import time
-
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 from scipy.spatial import KDTree
 
@@ -20,7 +16,8 @@ from .readers.roads import load_osm
 from .readers.cams import load_cams
 from .readers.era5 import load_era5
 from .readers.era5_land import load_era5_land
-from .utils import read_config, get_db_connection
+from .readers import eea
+from .utils import read_config
 
 # The 4th number of all versions is version_to_run needs to be the same
 versions_to_run = ['1000', '1010', '1020', '1030', '1040', '1060', '1070', '1080', '1090', '1100']
@@ -118,117 +115,21 @@ sources = {'topography': 'topography',
 def eea_stations(countries) -> tuple[pd.DataFrame, pd.DataFrame]:
     print('Loading stations and observations from EEA')
 
-    bbox = config['regions'][region]['bbox']
-    stations = pd.read_csv(
-        config['paths']['stations'] + '/stations.csv',
-        usecols=["Air Quality Station EoI Code", "Longitude", "Latitude", "Country"],
-        index_col="Air Quality Station EoI Code"
-    )
+    stations = eea.load_stations(countries=countries,
+                                 bbox=config['regions'][region]['bbox'],
+                                 data_path=Path(config['paths']['stations']))
 
-    # Filter stations by name. Only stations for selected countries
-    stations.index.name = 'station'
-    stations = stations.drop_duplicates()
-    stations = stations[stations["Country"].isin(countries)].drop(columns=["Country"])
-    stations = stations[(stations['Longitude'] >= bbox['min_lon']) &
-                        (stations['Longitude'] <= bbox['max_lon']) &
-                        (stations['Latitude'] >= bbox['min_lat']) &
-                        (stations['Latitude'] <= bbox['max_lat'])]
+    stations, observations = eea.load_eea_data(stations=stations,
+                                               pollutant=variable,
+                                               years=model_versions_years[int(versions_to_run[0][3])],
+                                               countries=countries,
+                                               data_path=Path(config['paths']['stations']))
 
-    contries_data = []
-    years = model_versions_years[int(versions_to_run[0][3])]
-    for country in countries:
-        country_code = country_codes[country]
-        for year in years:
-            year = str(year)
-            if os.path.isdir(os.path.join(config['paths']['stations'], year)):
-                if f'{country_code}.csv' not in os.listdir(os.path.join(config['paths']['stations'], year)):
-                    continue
-                country_data = pd.read_csv(
-                    os.path.join(config['paths']['stations'], year, f'{country_code}.csv'),
-                    usecols=['time', 'station', variable],
-                    index_col=['time', 'station'],
-                    parse_dates=['time'])
-                contries_data.append(country_data)
-        
-    observations = pd.concat(contries_data)
-
-    all_combinations = pd.MultiIndex.from_product([
-        observations.index.get_level_values('time').unique(),
-        observations.index.get_level_values('station').unique()],
-        names=['time', 'station']).to_frame(index=False)
-    
-    observations = pd.merge(all_combinations, observations, on=['time', 'station'], how='left').set_index(['time', 'station'])
-
-    # Join the station coordinates
-    observations = observations.join(stations, how='left', on='station')
-    # Drop observations where NO2 is NaN
-    observations = observations.groupby('station').filter(lambda x: x[variable].notnull().any())
-    # Drop observations where Latitude is NaN
-    observations = observations.groupby('station').filter(lambda x: x['Latitude'].notnull().any())
-    # Drop stations where NO2 is NaN
-    stations = stations[stations.index.isin(observations.index.get_level_values('station').unique())]
-    stations = get_clusters(stations)
-    # complete_clusters_sql(stations)
+    stations = eea.get_clusters(stations)
     observations = observations.join(stations['cluster'], on='station', how='inner')
-    observations = fill_missing_values(observations, variable=variable)
+    observations = eea.fill_missing_values(observations, variable=variable)
 
     return stations, observations
-
-def get_clusters(stations: pd.DataFrame) -> pd.DataFrame:
-    # Add the cluster column to the stations dataframe by connecting to the stations table of the SQL database
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    query = "SELECT station_id, cluster FROM stations WHERE cluster IS NOT NULL"
-    cursor.execute(query)
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    data = [(row[0].decode("utf-8"), int(row[1].decode("utf-8"))) for row in data]
-
-    clusters = pd.DataFrame(data, columns=['station', 'cluster'])
-    clusters = clusters.set_index('station')
-    stations = stations.join(clusters, how='inner')
-
-    return stations
-
-def fill_missing_values(observations, variable):
-    df = observations.copy()
-    df['hour'] = df.index.get_level_values('time').hour
-    df['dayofweek'] = df.index.get_level_values('time').dayofweek
-    df['weekofyear'] = df.index.get_level_values('time').isocalendar().week.values
-    df[f'last_observed_{variable}'] = df.groupby('station')[variable].shift(1).transform(lambda x: x.ffill())
-    
-    missing = df[df[variable].isnull()]
-    df = df.dropna(subset=[variable])
-    
-    features = ['hour', 'dayofweek', 'weekofyear', 'Longitude', 'Latitude', f'last_observed_{variable}']
-    target = variable
-    
-    X = df[features]
-    y = df[target]
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    model = make_pipeline(StandardScaler(), HistGradientBoostingRegressor())
-    model.fit(X_train, y_train)
-        
-    missing = missing.join(
-        df.groupby(['station', 'hour', 'dayofweek'])[f'last_observed_{variable}'].mean(),
-        on=['station', 'hour', 'dayofweek'],
-        rsuffix='_mean')
-    
-    missing[f'last_observed_{variable}'] = missing[f'last_observed_{variable}'].fillna(missing[f'last_observed_{variable}_mean'])
-    
-    missing = missing.drop(columns=[f'last_observed_{variable}_mean'])
-    
-    # Predict the missing values
-    missing[variable] = model.predict(missing[features])
-    observations = pd.concat([df, missing])[[variable, 'Latitude', 'Longitude', 'cluster']]
-    observations = observations.sort_index()
-    
-    return observations
 
 def get_permutations(observations, n):
     print('Generating permutations')
@@ -342,7 +243,7 @@ def get_roads(region_box, stations):
 def get_cams(observations, stations):
     print('Loading CAMS data')
     cams_path = config['paths']['cams']
-    cams_path = os.path.join(cams_path, variable.lower(), region)
+    cams_path = Path(cams_path, variable.lower(), region)
 
     dates = observations.index.get_level_values('time').unique()
     cams = load_cams(cams_path, dates=dates)
@@ -359,7 +260,7 @@ def get_cams(observations, stations):
 def get_era5(observations, stations):
     print('Loading ERA5 data')
     dates = observations.index.get_level_values('time').unique()
-    era5 = load_era5(config['paths']['era5'], dates)
+    era5 = load_era5(Path(config['paths']['era5']), region, dates)
     era5 = era5.interpolate(
         lat=stations.sort_index()['Latitude'],
         lon=stations.sort_index()['Longitude'],
@@ -371,7 +272,7 @@ def get_era5(observations, stations):
 def get_era5_land(observations, stations):
     print('Loading ERA5-Land data')
     dates = observations.index.get_level_values('time').unique()
-    era5_land = load_era5_land(config['paths']['era5_land'], dates)
+    era5_land = load_era5_land(config['paths']['era5_land'], region, dates)
     era5_land = era5_land.interpolate(
         lat=stations.sort_index()['Latitude'],
         lon=stations.sort_index()['Longitude'],
