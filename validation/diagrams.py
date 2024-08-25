@@ -9,8 +9,22 @@ from cams_downscaling.utils import get_db_connection, read_config
 
 
 # MODIFY THE FOLLOWING VARIABLES ACCORDING TO YOUR NEEDS
-model_versions_to_plot = [1000, 1010, 1020, 1030, 1040, 1060, 1070, 1080, 1090, 1100]
-model_versions_to_plot = [1001, 1011, 1021, 1031, 1041, 1061, 1071, 1081, 1091, 1101]
+# Iberia
+iberia_2022_2023 = [1000, 1010, 1020, 1030, 1040, 1060, 1070, 1080, 1090, 1100]
+iberia_2022 = [1001, 1011, 1021, 1031, 1041, 1061, 1071, 1081, 1091, 1101]
+iberia_cams_2022_2023 = [-1000]
+
+# Italy
+italy_2022_2023 = [10001, 10101, 10201, 10301, 10401, 10601, 10701, 10801, 10901, 11001]
+italy_2022 = [10011, 10111, 10211, 10311, 10411, 10611, 10711, 10811, 10911, 11011]
+italy_cams_2022_2023 = [-1001]
+
+# Poland
+poland_2022 = [10012, 10112, 10212, 10312, 10412, 10612, 10712, 10812, 10912, 11012]
+poland_cams_2022 = [-1002]
+
+model_versions_to_plot = iberia_2022_2023 + iberia_2022 + iberia_cams_2022_2023 + italy_2022_2023 + italy_2022 + italy_cams_2022_2023 + poland_2022 + poland_cams_2022
+
 # END OF VARIABLES TO MODIFY
 
 
@@ -22,7 +36,7 @@ POLLUTANTS = config['pollutants']['pollutants']
 
 
 def plot_diagram(version, cursor):
-    pollutant = POLLUTANTS[int(str(version)[:1])] # Get pollutant from model version
+    pollutant = POLLUTANTS[int(str(abs(version))[:1])] # Get pollutant from model version
     print(version)
     query = f"""
     SELECT station, bias, CRMSE, RMS_U
@@ -70,7 +84,10 @@ def plot_diagram(version, cursor):
         plt.scatter([], [], c=colors[i], label=CLUSTER_NAMES[cluster])
     plt.legend(scatterpoints=1, frameon=False, labelspacing=0.5, title='Cluster', loc='center left', bbox_to_anchor=(1, 0.5), prop={'size': 6})
 
-    plt.title(f'Target Diagram of Bias and CRMSE Normalized by RMS_U\nModel version: {version}')
+    if version > 0:
+        plt.title(f'Target Diagram of Bias and CRMSE Normalized by RMS_U\nModel version: {version}')
+    else:
+        plt.title(f'Target Diagram of Bias and CRMSE Normalized by RMS_U\nCAMS Interpolated')
 
     plt.xlim(-1.5, 1.5)
     plt.ylim(-1.5, 1.5)

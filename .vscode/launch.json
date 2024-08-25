@@ -23,6 +23,17 @@
                 "--years", "2023",
                 "--countries", "ES"
             ]
+        },
+
+        // debug current file with args asked on the fly
+        {
+            "name": "Debug current file",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}",
+            "python": "/home/urbanaq/miniforge3/envs/validator/bin/python"
         }
     ]
 }

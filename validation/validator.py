@@ -12,13 +12,10 @@ import numpy as np
 from cams_downscaling.utils import get_db_connection, read_config
 
 
-config = read_config('/home/urbanaq/aquv/config')
+config = read_config('/home/urbanaq/cams_downscaling/config')
 DATA_PATH = Path(config['paths']['stations'])
 
-POLLUTANTS = {1: 'NO2',
-             2: 'O3',
-             3: 'PM10',
-             4: 'PM2.5'}
+POLLUTANTS = config["pollutants"]["pollutants"]
 
 REF_VALUES = pd.DataFrame({
         "pollutant": ["NO2", "O3", "PM10", "PM2.5"],
@@ -253,7 +250,7 @@ def main():
     args = parse_arguments()
     conn = get_db_connection()
 
-    pollutant = POLLUTANTS[int(str(args.model_version)[:1])] # Get pollutant from model version
+    pollutant = POLLUTANTS[int(str(abs(args.model_version))[:1])] # Get pollutant from model version
 
     if not args.only_mqi90th:
         for country in args.countries:

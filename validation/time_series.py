@@ -5,22 +5,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import datetime as dt
 import os
 
-import MySQLdb as mysql
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from cams_downscaling.utils import read_config
+from cams_downscaling.utils import read_config, get_db_connection
 
 
 # MODIFY THE FOLLOWING VARIABLES ACCORDING TO YOUR NEEDS
 date_ini = dt.date(2022, 1, 1)
-date_end = dt.date(2022, 12, 31)
+date_end = dt.date(2023, 12, 31)
 
 model_versions_to_plot = [1000, 1010, 1020, 1030, 1040, 1060, 1070, 1080, 1090, 1100]
-model_versions_to_plot = [1001, 1011, 1021, 1031, 1041, 1061, 1071, 1081, 1091, 1101]
+#model_versions_to_plot = [1001, 1011, 1021, 1031, 1041, 1061, 1071, 1081, 1091, 1101]
+#model_versions_to_plot = [10001, 10101, 10201, 10301, 10401, 10601, 10701, 10801, 10901, 11001]
+#model_versions_to_plot = [10011, 10111, 10211, 10311, 10411, 10611, 10711, 10811, 10911, 11011]
+#model_versions_to_plot = [10012, 10112, 10212, 10312, 10412, 10612, 10712, 10812, 10912, 11012]
+
+raw_cams_version = -1000
+#raw_cams_version = -10001
+#raw_cams_version = -10002
 
 countries = ['Spain', 'Portugal']
+region = "iberia"
+
+#countries = ["Italy"]
+#region = "italy"
+
+#countries = ["Poland"]
+#region = "poland"
 # END OF VARIABLES TO MODIFY
 
 config = read_config('/home/urbanaq/cams_downscaling/config')
@@ -100,7 +113,7 @@ def get_days(df: pd.DataFrame) -> list[dt.date]:
     days = df['date'].dt.date.unique()
     return list(days)
 
-def plot_time_series(df_station: pd.DataFrame, df_model: pd.DataFrame, station: str, cluster: int, version: int):
+def plot_time_series(df_station: pd.DataFrame, df_model: pd.DataFrame, raw_cams_data: pd.DataFrame, station: str, cluster: int, version: int):
     # Plot time series of observed and modelled values only for the hours in df_model, using broken x-axis
     if df_model.empty:
         return
@@ -112,22 +125,34 @@ def plot_time_series(df_station: pd.DataFrame, df_model: pd.DataFrame, station: 
     
     if not days:
         return
+    
+    figsize = (10, 1.5 * len(days))
 
-    fig, axs = plt.subplots(1, len(days), figsize=(15, 5), sharey=True)
+    fig, axs = plt.subplots(len(days), 1, figsize=figsize, sharex=True, gridspec_kw = {'hspace':0.0})
 
     for i, day in enumerate(days):
         df_day = df_station[df_station['date'].dt.date == day]
         df_model_day = df_model[df_model['date'].dt.date == day]
 
         df_merged = pd.merge(df_day, df_model_day, on='date', how='right')
+        df_merged = pd.merge(df_merged, raw_cams_data, on='date', how='left')
 
-        axs[i].plot(df_merged['date'], df_merged['obs_values'], label='Observed (EEA stations)', color='blue') # type: ignore
-        axs[i].plot(df_merged['date'], df_merged['mod_values'], label='Modelled (AI)', color='red') # type: ignore
+        ticks = [x.hour for x in df_merged['date']]
 
-        ticks = [None]*24
-        ticks[12] = day.strftime('%d-%m-%Y') # type: ignore
-        axs[i].set_xticks(df_merged['date']) # type: ignore
-        axs[i].set_xticklabels(ticks, rotation=45) # type: ignore
+        axs[i].plot(ticks, df_merged['obs_values'], label='Observed (EEA stations)', color='blue') # type: ignore
+        axs[i].plot(ticks, df_merged['mod_values'], label='Modelled (AI)', color='red') # type: ignore
+        axs[i].plot(ticks, df_merged['cams'], label='Raw CAMS (interpoled)', color='black') # type: ignore
+        axs[i].set_xlim(0, 23)
+        
+        # Add annotation with date
+        axs[i].annotate(day, xy=(0.01, 0.9), xycoords='axes fraction', fontsize=8, fontweight='bold')
+
+        if i == len(days) -1:
+            axs[i].set_xticks(ticks)
+            axs[i].set_xticklabels(ticks, rotation=0)
+        else:
+            axs[i].set_xticks([])
+            axs[i].set_xticklabels([])
 
         handles, labels = axs[i].get_legend_handles_labels() # type: ignore
 
@@ -136,27 +161,34 @@ def plot_time_series(df_station: pd.DataFrame, df_model: pd.DataFrame, station: 
         # if i == len(days) - 1 or i != 0:
         #     axs[i].spines['left'].set_visible(False)
     
+    
+    
     fig.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
     fig.suptitle(f'Comparison between model and observation in station ' + r"$\bf{" + f'{station}' + "}$" +
                  f' for the validation days\nCluster: {CLUSTER_NAMES[cluster]} - Model version: {version}')
     
     # Add a custom legend, with blue meaning Modelled and red meaning Observed
-    fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.95))
+    fig.legend(handles, labels, loc='lower right')#, bbox_to_anchor=(0.95, 0.98))
 
     plt.ylabel('NO2 concentration (µg/m³)')
+    plt.xlabel('Hour of day')
 
     path = OUTPUT_PATH / str(version) / CLUSTER_NAMES[cluster]
     os.makedirs(path, exist_ok=True)
     plt.tight_layout(pad=2.0)
     plt.savefig(path / f'{station}_{cluster}_{version}.png')
+    plt.close()
 
 def main():
-    conn = mysql.connect(host='127.0.0.1',
-                         user='user',
-                         password='password',
-                         database='results')
-    
+    conn = get_db_connection()
+
+    print("Generating time series plots")
+    print(f"Versions: {", ".join(map(lambda x: str(x), model_versions_to_plot))}")
+    print(f"Countries: {', '.join(countries)} ({region})")
+    print(f"Dates: {date_ini} - {date_end}")
+    print(f"Using raw CAMS version: {raw_cams_version}")
+
     for version in model_versions_to_plot:
         for country in countries:
             country_data = get_country_data(country, 'NO2', date_ini=date_ini, date_end=date_end)
@@ -168,8 +200,14 @@ def main():
                 for station in stations:
                     station_data = get_station_data(country_data, station)
                     model_data = get_model_data(conn, version, station, date_ini, date_end)
+                    cams = get_model_data(conn, raw_cams_version, station, date_ini, date_end)
+                    cams.rename(columns={'mod_values': 'cams'}, inplace=True)
 
-                    plot_time_series(station_data, model_data, station, cluster, version)
-
+                    try:
+                        plot_time_series(station_data, model_data, cams, station, cluster, version)
+                    except Exception as e:
+                        print(f"Error plotting {station} - {cluster} - {version}")
+                        print(e)
+                    
 if __name__ == "__main__":
     main()

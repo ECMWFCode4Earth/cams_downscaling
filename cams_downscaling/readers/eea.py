@@ -83,7 +83,8 @@ def get_clusters(stations: pd.DataFrame) -> pd.DataFrame:
     cursor.close()
     conn.close()
 
-    data = [(row[0].decode("utf-8"), int(row[1].decode("utf-8"))) for row in data]
+    data = [(row[0] if type(row[0]) == str else row[0].decode("utf-8"), 
+             int(row[1] if type(row[1]) in (str, int) else row[1].decode("utf-8"))) for row in data]
 
     clusters = pd.DataFrame(data, columns=['station', 'cluster'])
     clusters = clusters.set_index('station')
