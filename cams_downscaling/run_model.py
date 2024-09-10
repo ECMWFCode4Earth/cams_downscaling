@@ -94,12 +94,12 @@ def eea_stations(countries) -> tuple[pd.DataFrame, pd.DataFrame]:
                                                countries=countries,
                                                data_path=Path(config['paths']['stations']))
 
-    stations = eea.get_clusters(stations)
+    stations = eea.get_clusters(stations) # type: ignore
     for cluster in stations.cluster.unique():
         # Check how many rows are in each cluster and delete those with less than 2 rows
         if stations[stations.cluster == cluster].shape[0] < 2:
             stations = stations[stations.cluster != cluster]
-    observations = observations.join(stations['cluster'], on='station', how='inner')
+    observations = observations.join(stations['cluster'], on='station', how='inner') # type: ignore
     observations = eea.fill_missing_values(observations, variable=variable)
 
     return stations, observations
@@ -265,16 +265,29 @@ def get_dataset(version,observations,
     return dataset
 
 def get_train_test(dataset, permutations, cams, external_variables):
-    pairs = dataset.reset_index()[['time', 'cluster']]
-    pairs['time'] = pairs['time'].dt.date
+    """    pairs = dataset.reset_index()[['time', 'cluster']]
+        pairs['time'] = pairs['time'].dt.date
 
-    train_split, test_split = train_test_split(pairs.drop_duplicates(), test_size=0.1, random_state=42)
+        train_split, test_split = train_test_split(pairs.drop_duplicates(), test_size=0.1, random_state=42)
+
+        train_set = set(train_split.itertuples(index=False, name=None))
+        test_set = set(test_split.itertuples(index=False, name=None))
+
+        train_dataset = dataset[[t in train_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
+        test_dataset = dataset[[t in test_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
+    """
+ 
+    pairs = dataset.reset_index()[['cluster', 'station']]
+
+    # test_split = pairs.drop_duplicates().groupby('cluster').sample(1)
+    test_split = pairs.drop_duplicates().groupby('cluster').apply(lambda x: x.sample(n = int(0.2 * x.shape[0] + 1), random_state=42))
+    train_split = pairs[~pairs.index.isin(test_split.index)]
 
     train_set = set(train_split.itertuples(index=False, name=None))
     test_set = set(test_split.itertuples(index=False, name=None))
 
-    train_dataset = dataset[[t in train_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
-    test_dataset = dataset[[t in test_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
+    train_dataset = dataset[[t in train_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
+    test_dataset = dataset[[t in test_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
 
     train_dataset[f'{variable}_cams'] = cams[variable]
     train_dataset = train_dataset.join(permutations).groupby(['time', 'cluster']).apply(
@@ -409,6 +422,13 @@ def main():
 
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
+
+        """# Save model
+        model_path = Path(config['paths']['models'], f'{version}.joblib')
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        from joblib import dump
+        dump(model, model_path)
+        """
 
         print(f'Root Mean Squared Error: {mse**0.5}')
         print(f'R² Score: {r2}')
