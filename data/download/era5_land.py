@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
         print(f'Starting data download for {args.year} - 4 threads...')
 
-        for month in range(2, 13):
+        for month in range(1, 10):
             tasks.append(tp.submit(download, args.year, month))
 
         for task in concurrent.futures.as_completed(tasks):

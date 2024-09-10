@@ -6,7 +6,7 @@ from pathlib import Path
 import xarray as xr
 
 
-DATA_FOLDER = "/home/urbanaq/data/era5/2023"
+DATA_FOLDER = "/home/urbanaq/data/era5/2024"
 
 paths = [f for f in sorted(Path(DATA_FOLDER).glob("**/*")) if (f.is_file() and not 'idx' in str(f))]
 

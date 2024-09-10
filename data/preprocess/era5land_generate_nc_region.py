@@ -10,12 +10,12 @@ import xarray as xr
 from cams_downscaling.utils import read_config
 
 
-region = "italy"
+region = "poland"
 
 config = read_config('/home/urbanaq/cams_downscaling/config')
 region_bbox = config["regions"][region]["bbox"]
 
-DATA_FOLDER = Path("/home/urbanaq/data/era5_land")
+DATA_FOLDER = Path("/home/urbanaq/data/era5_land/2024")
 
 paths = [f for f in sorted(DATA_FOLDER.glob("**/*.grib")) if (f.is_file() and not 'idx' in str(f))]
 

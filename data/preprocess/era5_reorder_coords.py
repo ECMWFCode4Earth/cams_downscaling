@@ -46,7 +46,7 @@ def crear_dir(path_dir):
 
 
 for var in vars:
-    input_path = base_path / 'era5_old_pl' / var / region
+    input_path = base_path / 'era5_old' / var / region
     output_path = base_path / 'era5' / var / region
 
     crear_dir(output_path)

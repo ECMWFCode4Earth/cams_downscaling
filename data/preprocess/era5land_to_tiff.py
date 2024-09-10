@@ -11,7 +11,7 @@ from PIL import Image
 
 
 region = "poland"
-file = f"/home/urbanaq/data/era5_land/era5_land_{region}.nc"
+file = f"/home/urbanaq/data/era5_land/2024/era5_land_{region}.nc"
 output_folder = "/data1/data_prep/era5_land_old/{variable}/{region}"
 
 variables = ["u10", "v10", "t2m", "ssr", "tp", "d2m"]

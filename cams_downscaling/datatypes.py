@@ -67,20 +67,29 @@ class GridData:
             return PointData(np.stack([lat, lon], axis=1), new_values)
         
     def interpolate_discrete(self, lat, lon, grid=True):
+        if grid:
+            lon_grid, lat_grid = np.meshgrid(lon, lat)
+            lat_lon_points = np.stack([lat_grid.flatten(), lon_grid.flatten()], axis=1)
+        else:
+            lat_lon_points = np.stack([lat, lon], axis=1)
+        
         old_points = np.array(np.meshgrid(self.lat, self.lon)).T.reshape(-1, 2)
 
         new_values = {}
         for key, value in self.values.items():
             Z = np.nan_to_num(value).flatten()
             interpolator = KDTree(old_points)
-            _, indices = interpolator.query(np.stack([lat, lon], axis=1), k=4)
+            _, indices = interpolator.query(lat_lon_points, k=4)
             new_Z = mode(Z[indices], axis=1).mode
-            new_values[key] = new_Z
-        
+            if grid:
+                new_values[key] = new_Z.reshape(lat_grid.shape)
+            else:
+                new_values[key] = new_Z
+            
         if grid:
             return GridData(lat, lon, new_values)
         else:
-            return PointData(np.stack([lat, lon], axis=1), new_values)
+            return PointData(lat_lon_points, new_values)
 
     def to_frame(self):
         index = pd.MultiIndex.from_product([self.lat, self.lon], names=['lat', 'lon'])

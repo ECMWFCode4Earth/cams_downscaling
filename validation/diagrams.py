@@ -17,11 +17,11 @@ iberia_cams_2022_2023 = [-1000]
 # Italy
 italy_2022_2023 = [10001, 10101, 10201, 10301, 10401, 10601, 10701, 10801, 10901, 11001]
 italy_2022 = [10011, 10111, 10211, 10311, 10411, 10611, 10711, 10811, 10911, 11011]
-italy_cams_2022_2023 = [-1001]
+italy_cams_2022_2023 = [-10001]
 
 # Poland
 poland_2022 = [10012, 10112, 10212, 10312, 10412, 10612, 10712, 10812, 10912, 11012]
-poland_cams_2022 = [-1002]
+poland_cams_2022 = [-10002]
 
 model_versions_to_plot = iberia_2022_2023 + iberia_2022 + iberia_cams_2022_2023 + italy_2022_2023 + italy_2022 + italy_cams_2022_2023 + poland_2022 + poland_cams_2022
 
@@ -37,6 +37,22 @@ POLLUTANTS = config['pollutants']['pollutants']
 
 def plot_diagram(version, cursor):
     pollutant = POLLUTANTS[int(str(abs(version))[:1])] # Get pollutant from model version
+    if len(str(abs(version))) == 4:
+         query_clusters = f"""
+                SELECT station_id, cluster
+                FROM stations WHERE cluster LIKE '1%' OR cluster LIKE '2%';
+                """
+    elif int(str(abs(version))[4]) == 1:
+        query_clusters = f"""
+                SELECT station_id, cluster
+                FROM stations WHERE cluster LIKE '4%';
+                """
+    else:
+        query_clusters = f"""
+                SELECT station_id, cluster
+                FROM stations WHERE cluster LIKE '5%';
+                """
+
     print(version)
     query = f"""
     SELECT station, bias, CRMSE, RMS_U
@@ -46,11 +62,7 @@ def plot_diagram(version, cursor):
     cursor.execute(query)
     data = cursor.fetchall()
 
-    query = f"""
-    SELECT station_id, cluster
-    FROM stations
-    """
-    cursor.execute(query)
+    cursor.execute(query_clusters)
     stations = cursor.fetchall()
     # Get all different clusters
     clusters = list(set([s[1] for s in stations]))
@@ -65,7 +77,12 @@ def plot_diagram(version, cursor):
 
     for row in data:
         station = row[0]
-        cluster = [s[1] for s in stations if s[0] == station][0]
+        cluster = [s[1] for s in stations if s[0] == station]
+        if not cluster:
+            continue
+        cluster = cluster[0]
+        if cluster not in CLUSTER_NAMES:
+            continue
         color_points.append(colors[clusters.index(cluster)])
         cluster_points.append(cluster)
         bias.append(row[1])

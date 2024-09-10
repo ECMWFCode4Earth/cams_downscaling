@@ -10,7 +10,8 @@ from PIL import Image
 region = "italy"
 variable = "no2"
 
-file = f"/home/urbanaq/data/cams/{variable}/{variable}_{region}.nc"
+#file = f"/home/urbanaq/data/cams/{variable}/{variable}_{region}.nc"
+file = f"/home/urbanaq/data/cams/2024/cams_{region}.nc"
 output_folder = f"/data1/data_prep/cams/{variable}/{region}"
 
 os.makedirs(output_folder, exist_ok=True)
