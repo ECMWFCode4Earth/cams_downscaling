@@ -23,7 +23,9 @@ italy_cams_2022_2023 = [-10001]
 poland_2022 = [10012, 10112, 10212, 10312, 10412, 10612, 10712, 10812, 10912, 11012]
 poland_cams_2022 = [-10002]
 
-model_versions_to_plot = iberia_2022_2023 + iberia_2022 + iberia_cams_2022_2023 + italy_2022_2023 + italy_2022 + italy_cams_2022_2023 + poland_2022 + poland_cams_2022
+# model_versions_to_plot = iberia_2022_2023 + iberia_2022 + iberia_cams_2022_2023 + italy_2022_2023 + italy_2022 + italy_cams_2022_2023 + poland_2022 + poland_cams_2022
+model_versions_to_plot = [2091, 10001]
+
 
 # END OF VARIABLES TO MODIFY
 
@@ -98,7 +100,7 @@ def plot_diagram(version, cursor):
 
     # Add legend for each cluster
     for i, cluster in enumerate(list(set(cluster_points))):
-        plt.scatter([], [], c=colors[i], label=CLUSTER_NAMES[cluster])
+        plt.scatter([], [], c=[colors[i]], label=CLUSTER_NAMES[cluster])
     plt.legend(scatterpoints=1, frameon=False, labelspacing=0.5, title='Cluster', loc='center left', bbox_to_anchor=(1, 0.5), prop={'size': 6})
 
     if version > 0:

@@ -6,7 +6,6 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from scipy.spatial import KDTree
-from joblib import dump
 
 from .datatypes import DatabaseTSPD
 from .readers.topography import load_topography
@@ -29,7 +28,7 @@ datasets_to_run = ["00", "01", "02", "03", "04", "06", "07", "08", "09", "10"] #
 # 4th number: 0 for 2022 and 2023, 1 for 2022, 2 for 2023
 year_code = 0
 # 5th number: None for Iberia, 1 for Italy, 2 for Poland
-region_code = 2
+region_code = 1
 
 # DON'T change it, just add new combinations as needed
 datasets_combinations = {
@@ -266,6 +265,17 @@ def get_dataset(version,observations,
     return dataset
 
 def get_train_test(dataset, permutations, cams, external_variables):
+    """    pairs = dataset.reset_index()[['time', 'cluster']]
+        pairs['time'] = pairs['time'].dt.date
+
+        train_split, test_split = train_test_split(pairs.drop_duplicates(), test_size=0.1, random_state=42)
+
+        train_set = set(train_split.itertuples(index=False, name=None))
+        test_set = set(test_split.itertuples(index=False, name=None))
+
+        train_dataset = dataset[[t in train_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
+        test_dataset = dataset[[t in test_set for t in zip(dataset.index.get_level_values('time').date, dataset.cluster)]].copy()
+    """
  
     pairs = dataset.reset_index()[['cluster', 'station']]
 
@@ -404,14 +414,24 @@ def main():
         model = HistGradientBoostingRegressor()
         model.fit(X_train, y_train)
 
-        # Save model
-        model_path = Path(config['paths']['models'], f'{version}.joblib')
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        dump(model, model_path)
-
         # Predict
         y_pred = model.predict(X_test)
+
+        # Evaluate the model
+        from sklearn.metrics import mean_squared_error, r2_score
+
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+
+        """# Save model
+        model_path = Path(config['paths']['models'], f'{version}.joblib')
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        from joblib import dump
+        dump(model, model_path)
+        """
+
+        print(f'Root Mean Squared Error: {mse**0.5}')
+        print(f'R² Score: {r2}')
 
         print(f"It took {(time.time() - start)/60} minutes to train model version {version}")
         start = time.time()

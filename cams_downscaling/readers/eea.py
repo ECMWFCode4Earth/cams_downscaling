@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
+import decimal
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
@@ -33,7 +34,7 @@ def load_stations(countries: list[str], bbox: dict, data_path: Path) -> pd.DataF
     return stations
     
 
-def load_eea_data(data_path: Path, stations: pd.DataFrame, pollutant: str, years: list[int], countries: list[str]) -> pd.DataFrame:
+def load_eea_data(data_path: Path, stations: pd.DataFrame, pollutant: str, years: list[int], countries: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     contries_data = []
 
@@ -84,7 +85,7 @@ def get_clusters(stations: pd.DataFrame) -> pd.DataFrame:
     conn.close()
 
     data = [(row[0] if type(row[0]) == str else row[0].decode("utf-8"), 
-             int(row[1] if type(row[1]) in (str, int) else row[1].decode("utf-8"))) for row in data]
+             int(row[1] if type(row[1]) in (str, int) else str(row[1]) if type(row[1]) == decimal.Decimal else row[1].decode("utf-8"))) for row in data]
 
     clusters = pd.DataFrame(data, columns=['station', 'cluster'])
     clusters = clusters.set_index('station')

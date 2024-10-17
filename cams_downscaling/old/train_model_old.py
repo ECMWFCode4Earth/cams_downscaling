@@ -22,14 +22,14 @@ from .utils import read_config
 
 
 # VERSION NUMBERING:
-# 1st number: 1 for NO2
-pollutant_code = 1
+# 1st number: 1 for time-based split, 2 for station-based split
+split_method = [2] # This script uses only station-based split
 # 2nd - 3rd number: combination of datasets
-datasets_to_run = ["00", "01", "02", "03", "04", "06", "07", "08", "09", "10"] # 2nd - 3rd number
+datasets_to_run = ["00", "01", "02", "03", "04", "06", "07", "08", "09", "10"] # 2nd + 3rd number
 # 4th number: 0 for 2022 and 2023, 1 for 2022, 2 for 2023
-year_code = 0
+year_code = [0, 1, 2]
 # 5th number: None for Iberia, 1 for Italy, 2 for Poland
-region_code = 2
+region_code = [None, 1]
 
 # DON'T change it, just add new combinations as needed
 datasets_combinations = {
@@ -48,28 +48,59 @@ datasets_combinations = {
 
 # AUTOMATIC GENERATION OF VERSIONS BASED ON ABOVE
 model_versions = {
-    f"{pollutant_code}{combination}{year_code}{region_code if region_code else ''}": datasets_combinations[combination] for combination in datasets_to_run
+    f"{method}{combination}{period}{region if region else ''}": datasets_combinations[combination]
+    for combination in datasets_to_run
+    for method in split_method
+    for period in year_code
+    for region in region_code
 }
 
-if not region_code:
-    region = 'iberia'
-    countries = ["Spain", "Portugal"]
-elif region_code == 1:
-    region = 'italy'
-    countries = ["Italy"]
-elif region_code == 2:
-    region = 'poland'
-    countries = ["Poland"]
-else:
-    raise ValueError('Countries not defined for the region selected')
+years_code = {
+        0: [2022, 2023],
+        1: [2022],
+        2: [2023]
+    }
 
-years = {
-    0: [2022, 2023],
-    1: [2022],
-    2: [2023]
-}[year_code]
+country_code = {
+    None: ["Spain", "Portugal"],
+    1: ["Italy"],
+    2: ["Poland"]
+}
+
+regions_code = {
+    None: "iberia",
+    1: "italy",
+    2: "poland"
+}
+
+country_region = {
+    "Spain": "iberia",
+    "Portugal": "iberia",
+    "Italy": "italy",
+    "Poland": "poland"
+}
+
+region_cluster = {
+        'iberia': [1, 2, 3],
+        'italy': [4],
+        'poland': [5]
+    }
+
+all_countries = []
+for i in region_code:
+    all_countries = all_countries + country_code[i]
+
+all_regions = [regions_code[i] for i in region_code]
+
+all_years = []
+for i in year_code:
+    all_years = all_years + years_code[i]
+
+all_years = list(set(all_years))
 
 config = read_config('/home/urbanaq/cams_downscaling/config')
+
+pollutant_code = 1 # 1 for NO2
 variable = config['pollutants']['pollutants'][pollutant_code]
 
 sources = {'topography': 'topography',
@@ -85,13 +116,17 @@ sources = {'topography': 'topography',
 def eea_stations(countries) -> tuple[pd.DataFrame, pd.DataFrame]:
     print('Loading stations and observations from EEA')
 
-    stations = eea.load_stations(countries=countries,
-                                 bbox=config['regions'][region]['bbox'],
-                                 data_path=Path(config['paths']['stations']))
+    stations = []
+    for country in countries:
+        stations.append(eea.load_stations(countries=[country],
+                                     bbox=config['regions'][country_region[country]]['bbox'],
+                                     data_path=Path(config['paths']['stations'])))
+        
+    stations = pd.concat(stations)
 
     stations, observations = eea.load_eea_data(stations=stations,
                                                pollutant=variable,
-                                               years=years,
+                                               years=all_years,
                                                countries=countries,
                                                data_path=Path(config['paths']['stations']))
 
@@ -201,58 +236,95 @@ def get_land_cover(region_box, stations):
 
     return land_use
 
-def get_roads(region_box, stations):
+def get_roads(region_box, stations_all):
     print('Loading roads data')
-    roads = pd.concat([
-    load_osm(
-        f"{config['paths']['osm']}/{region}.tif",
-        {k: v for k, v in zip(['min_lat', 'max_lat', 'min_lon', 'max_lon'], region_box.loc[c][['Latitude', 'Longitude']].values)})
-    .interpolate_discrete(
-        lat=stations[stations.cluster == c]['Latitude'],
-        lon=stations[stations.cluster == c]['Longitude'],
-        grid=False).to_frame().set_index(stations[stations.cluster == c].index)
-    for c in stations.cluster.unique()])
 
-    return roads
+    roads_dict = {}
+    for region in all_regions:
+        # Filter stations in the region
+        clusters_in_region = [i for i in region_box.index if int(str(i)[0]) in region_cluster[region]]
+        stations = stations_all[stations_all['cluster'].isin(clusters_in_region)]
 
-def get_cams(observations, stations):
+        roads = pd.concat([
+        load_osm(
+            f"{config['paths']['osm']}/{region}.tif",
+            {k: v for k, v in zip(['min_lat', 'max_lat', 'min_lon', 'max_lon'], region_box.loc[c][['Latitude', 'Longitude']].values)})
+        .interpolate_discrete(
+            lat=stations[stations.cluster == c]['Latitude'],
+            lon=stations[stations.cluster == c]['Longitude'],
+            grid=False).to_frame().set_index(stations[stations.cluster == c].index)
+        for c in stations.cluster.unique()])
+
+        roads_dict[region] = roads
+
+    return roads_dict
+
+def get_cams(all_observations, all_stations):
     print('Loading CAMS data')
-    cams_path = config['paths']['cams']
-    cams_path = Path(cams_path, variable.lower(), region)
+    cams_dict = {}
+    base_cams_path = config['paths']['cams']
 
-    dates = observations.index.get_level_values('time').unique()
-    cams = load_cams(cams_path, dates=dates)
-    cams =  cams.interpolate(
-        lat=stations.sort_index()['Latitude'],
-        lon=stations.sort_index()['Longitude'],
-        grid=False).to_frame()
-    cams.index = observations.sort_index().index
+    for region in all_regions:
+        # Filter stations in the region
+        clusters_in_region = [i for i in all_stations['cluster'].unique() if int(str(i)[0]) in region_cluster[region]]
+        stations = all_stations[all_stations['cluster'].isin(clusters_in_region)]
+        observations = all_observations[all_observations['cluster'].isin(clusters_in_region)]
 
-    cams.columns = [v.upper() for v in cams.columns]
+        cams_path = Path(base_cams_path, variable.lower(), region)
 
-    return cams
+        dates = observations.index.get_level_values('time').unique()
+        cams = load_cams(cams_path, dates=dates)
+        cams =  cams.interpolate(
+            lat=stations.sort_index()['Latitude'],
+            lon=stations.sort_index()['Longitude'],
+            grid=False).to_frame()
+        cams.index = observations.sort_index().index
 
-def get_era5(observations, stations):
+        cams.columns = [v.upper() for v in cams.columns]
+
+        cams_dict[region] = cams
+
+    return cams_dict
+
+def get_era5(all_observations, all_stations):
     print('Loading ERA5 data')
-    dates = observations.index.get_level_values('time').unique()
-    era5 = load_era5(Path(config['paths']['era5']), region, dates)
-    era5 = era5.interpolate(
-        lat=stations.sort_index()['Latitude'],
-        lon=stations.sort_index()['Longitude'],
-        grid=False).to_frame()
-    era5.index = observations.sort_index().index
+    era5_dict = {}
+    for region in all_regions:
+        # Filter stations in the region
+        clusters_in_region = [i for i in all_stations['cluster'].unique() if int(str(i)[0]) in region_cluster[region]]
+        stations = all_stations[all_stations['cluster'].isin(clusters_in_region)]
+        observations = all_observations[all_observations['cluster'].isin(clusters_in_region)]
 
-    return era5
+        dates = observations.index.get_level_values('time').unique()
+        era5 = load_era5(Path(config['paths']['era5']), region, dates)
+        era5 = era5.interpolate(
+            lat=stations.sort_index()['Latitude'],
+            lon=stations.sort_index()['Longitude'],
+            grid=False).to_frame()
+        era5.index = observations.sort_index().index
 
-def get_era5_land(observations, stations):
+        era5_dict[region] = era5
+
+    return era5_dict
+
+def get_era5_land(all_observations, all_stations):
     print('Loading ERA5-Land data')
-    dates = observations.index.get_level_values('time').unique()
-    era5_land = load_era5_land(Path(config['paths']['era5_land']), region, dates)
-    era5_land = era5_land.interpolate(
-        lat=stations.sort_index()['Latitude'],
-        lon=stations.sort_index()['Longitude'],
-        grid=False).to_frame()
-    era5_land.index = observations.sort_index().index
+    era5_land_dict = {}
+    for region in all_regions:
+        # Filter stations in the region
+        clusters_in_region = [i for i in all_stations['cluster'].unique() if int(str(i)[0]) in region_cluster[region]]
+        stations = all_stations[all_stations['cluster'].isin(clusters_in_region)]
+        observations = all_observations[all_observations['cluster'].isin(clusters_in_region)]
+
+        dates = observations.index.get_level_values('time').unique()
+        era5_land = load_era5_land(Path(config['paths']['era5_land']), region, dates)
+        era5_land = era5_land.interpolate(
+            lat=stations.sort_index()['Latitude'],
+            lon=stations.sort_index()['Longitude'],
+            grid=False).to_frame()
+        era5_land.index = observations.sort_index().index
+
+        era5_land_dict[region] = era5_land
 
     return era5_land
 
@@ -269,15 +341,12 @@ def get_train_test(dataset, permutations, cams, external_variables):
  
     pairs = dataset.reset_index()[['cluster', 'station']]
 
-    # test_split = pairs.drop_duplicates().groupby('cluster').sample(1)
     test_split = pairs.drop_duplicates().groupby('cluster').apply(lambda x: x.sample(n = int(0.2 * x.shape[0] + 1), random_state=42))
     train_split = pairs[~pairs.index.isin(test_split.index)]
 
     train_set = set(train_split.itertuples(index=False, name=None))
-    test_set = set(test_split.itertuples(index=False, name=None))
 
     train_dataset = dataset[[t in train_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
-    test_dataset = dataset[[t in test_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
 
     train_dataset[f'{variable}_cams'] = cams[variable]
     train_dataset = train_dataset.join(permutations).groupby(['time', 'cluster']).apply(
@@ -285,14 +354,7 @@ def get_train_test(dataset, permutations, cams, external_variables):
         variable=variable, external_variables=external_variables
     ).reset_index().drop(columns=['level_2'])
 
-    test_dataset[f'{variable}_cams'] = cams[variable]
-    test_dataset = test_dataset.join(permutations).groupby(['time', 'cluster']).apply(
-        interpolate_points,
-        variable=variable, external_variables=external_variables
-    ).reset_index().drop(columns=['level_2'])
-
-    return train_dataset, test_dataset
-
+    return train_dataset
 
 def get_train_test_old(dataset, permutations, cams, external_variables):
     dataset[f'{variable}_cams'] = cams[variable]
@@ -331,17 +393,16 @@ def prepare_dataset(data, external_variables):
 
     return X, y
 
-def get_model_sets(version, observations, permutations, topography, land_use, population, height, roads, cams, era5, era5_land):
+def get_model_train_set(version, observations, permutations, topography, land_use, population, height, roads, cams, era5, era5_land):
     dataset = get_dataset(version,observations,
                                 topography, land_use, population, height, roads,
                                 cams, era5, era5_land)
     external_variables = dataset.columns[4:].tolist()
 
-    train_dataset, test_dataset = get_train_test(dataset, permutations, cams, external_variables)
+    train_dataset = get_train_test(dataset, permutations, cams, external_variables)
     X_train, y_train = prepare_dataset(train_dataset, external_variables)
-    X_test, y_test = prepare_dataset(test_dataset, external_variables)
 
-    return train_dataset, test_dataset, X_train, y_train, X_test, y_test
+    return X_train, y_train
 
 def save_results(dataset, X_test, y_pred, model_version):
     print(f'Saving results for model version {model_version}')
@@ -371,15 +432,28 @@ def get_datasets(stations, observations):
     era5_land = get_era5_land(observations, stations)
 
     return topography, land_use, population, height, roads, cams, era5, era5_land
+
+def get_years(version):
+    year_code = int(version[3])
+    return years_code[year_code]
+
+def get_region_countries(version):
+    if len(version) == 5:
+        return {
+            1: 'italy',
+            2: 'poland'
+        }[int(version[4])], country_code[int(version[4])]
+    elif len(version) == 4:
+        return 'iberia', ["Spain", "Portugal"]
     
 def main():
 
     start = time.time()
     # EEA Observations Dataset (to train and test the model)
-    stations, observations = eea_stations(countries=countries)
+    stations, observations = eea_stations(countries=all_countries)
 
     # Model Datasets
-    topography, land_use, population, height, roads, cams, era5, era5_land = get_datasets(stations, observations)
+    topography, land_use, population, height, all_roads, all_cams, all_era5, all_era5_land = get_datasets(stations, observations)
 
     permutations = get_permutations(observations, n=5)
 
@@ -387,15 +461,23 @@ def main():
     start = time.time()
 
     print()
-    print('---- Running models ----')
+    print('---- Training models ----')
     print()
 
     start = time.time()
 
     for version in model_versions.keys():
+
+        global years, region, countries
+        years = get_years(version)
+        region, countries = get_region_countries(version) # type: ignore
+        roads = all_roads[region]
+        cams = all_cams[region]
+        era5 = all_era5[region]
+        era5_land = all_era5_land[region]
         
-        print(f'Running model version {version}')
-        _, test_dataset, X_train, y_train, X_test, y_test = get_model_sets(
+        print(f'Training model version {version}')
+        X_train, y_train = get_model_train_set(
             version, observations, permutations,
             topography, land_use, population, height, roads,
             cams, era5, era5_land)
@@ -404,24 +486,16 @@ def main():
         model = HistGradientBoostingRegressor()
         model.fit(X_train, y_train)
 
+        print(f"It took {(time.time() - start)/60} minutes to train model version {version}")
+        start = time.time()
+
         # Save model
         model_path = Path(config['paths']['models'], f'{version}.joblib')
         model_path.parent.mkdir(parents=True, exist_ok=True)
         
         dump(model, model_path)
-
-        # Predict
-        y_pred = model.predict(X_test)
-
-        print(f"It took {(time.time() - start)/60} minutes to train model version {version}")
-        start = time.time()
-
-        # Save results
-        save_results(test_dataset, X_test, y_pred, model_version=version)
-
-        print(f"It took {(time.time() - start)/60} minutes to store the results for model version {version}")
-        print()
-
+        
+        print(f"It took {(time.time() - start)/60} minutes to store parametrers for model version {version}")
         start = time.time()
 
     print('---- Models finished ----')

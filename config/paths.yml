@@ -1,4 +1,5 @@
 cams: /data1/data_prep/cams
+cams_forecast: /data1/data_prep/cams_forecast
 stations: /data1/data_prep/eea/
 topography: /data1/data_prep/nasa_topo/topo.tiff
 land_cover: /data1/data_prep/corine_land_cover/U2018_CLC2018_V2020_20u1_4326.tif
@@ -8,4 +9,7 @@ era5_land: /data1/data_prep/era5_land
 height: /data1/data_prep/ghs_built_h/GHS_BUILT_H_AGBH_E2018_GLOBE_R2023A_54009_100_V1_0.tif
 osm: /data1/data_prep/osm
 
+models: /data1/models
+
 validation_results: /home/urbanaq/results
+maps: /home/urbanaq/results/maps

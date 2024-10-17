@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from scipy.spatial import KDTree
-from joblib import dump
+from joblib import load
 
 from .datatypes import DatabaseTSPD
 from .readers.topography import load_topography
@@ -22,14 +22,16 @@ from .utils import read_config
 
 
 # VERSION NUMBERING:
-# 1st number: 1 for NO2
-pollutant_code = 1
+# 1st number: 1 for time-based split, 2 for station-based split
+split_method = 2
 # 2nd - 3rd number: combination of datasets
 datasets_to_run = ["00", "01", "02", "03", "04", "06", "07", "08", "09", "10"] # 2nd - 3rd number
 # 4th number: 0 for 2022 and 2023, 1 for 2022, 2 for 2023
-year_code = 0
+year_code = 1
 # 5th number: None for Iberia, 1 for Italy, 2 for Poland
-region_code = 2
+region_code = None
+
+pollutant_code = 1
 
 # DON'T change it, just add new combinations as needed
 datasets_combinations = {
@@ -48,7 +50,7 @@ datasets_combinations = {
 
 # AUTOMATIC GENERATION OF VERSIONS BASED ON ABOVE
 model_versions = {
-    f"{pollutant_code}{combination}{year_code}{region_code if region_code else ''}": datasets_combinations[combination] for combination in datasets_to_run
+    f"{split_method}{combination}{year_code}{region_code if region_code else ''}": datasets_combinations[combination] for combination in datasets_to_run
 }
 
 if not region_code:
@@ -265,25 +267,15 @@ def get_dataset(version,observations,
     
     return dataset
 
-def get_train_test(dataset, permutations, cams, external_variables):
- 
+def get_test(dataset, permutations, cams, external_variables):
+
     pairs = dataset.reset_index()[['cluster', 'station']]
 
-    # test_split = pairs.drop_duplicates().groupby('cluster').sample(1)
     test_split = pairs.drop_duplicates().groupby('cluster').apply(lambda x: x.sample(n = int(0.2 * x.shape[0] + 1), random_state=42))
-    train_split = pairs[~pairs.index.isin(test_split.index)]
 
-    train_set = set(train_split.itertuples(index=False, name=None))
     test_set = set(test_split.itertuples(index=False, name=None))
 
-    train_dataset = dataset[[t in train_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
     test_dataset = dataset[[t in test_set for t in zip(dataset.cluster, dataset.index.get_level_values('station'))]].copy()
-
-    train_dataset[f'{variable}_cams'] = cams[variable]
-    train_dataset = train_dataset.join(permutations).groupby(['time', 'cluster']).apply(
-        interpolate_points,
-        variable=variable, external_variables=external_variables
-    ).reset_index().drop(columns=['level_2'])
 
     test_dataset[f'{variable}_cams'] = cams[variable]
     test_dataset = test_dataset.join(permutations).groupby(['time', 'cluster']).apply(
@@ -291,7 +283,7 @@ def get_train_test(dataset, permutations, cams, external_variables):
         variable=variable, external_variables=external_variables
     ).reset_index().drop(columns=['level_2'])
 
-    return train_dataset, test_dataset
+    return test_dataset
 
 
 def get_train_test_old(dataset, permutations, cams, external_variables):
@@ -331,17 +323,16 @@ def prepare_dataset(data, external_variables):
 
     return X, y
 
-def get_model_sets(version, observations, permutations, topography, land_use, population, height, roads, cams, era5, era5_land):
+def get_model_test_sets(version, observations, permutations, topography, land_use, population, height, roads, cams, era5, era5_land):
     dataset = get_dataset(version,observations,
                                 topography, land_use, population, height, roads,
                                 cams, era5, era5_land)
     external_variables = dataset.columns[4:].tolist()
 
-    train_dataset, test_dataset = get_train_test(dataset, permutations, cams, external_variables)
-    X_train, y_train = prepare_dataset(train_dataset, external_variables)
+    test_dataset = get_test(dataset, permutations, cams, external_variables)
     X_test, y_test = prepare_dataset(test_dataset, external_variables)
 
-    return train_dataset, test_dataset, X_train, y_train, X_test, y_test
+    return test_dataset, X_test, y_test
 
 def save_results(dataset, X_test, y_pred, model_version):
     print(f'Saving results for model version {model_version}')
@@ -368,7 +359,8 @@ def get_datasets(stations, observations):
 
     # Meteo Datasets
     era5 = get_era5(observations, stations)
-    era5_land = get_era5_land(observations, stations)
+    # era5_land = get_era5_land(observations, stations)
+    era5_land = era5
 
     return topography, land_use, population, height, roads, cams, era5, era5_land
     
@@ -395,23 +387,26 @@ def main():
     for version in model_versions.keys():
         
         print(f'Running model version {version}')
-        _, test_dataset, X_train, y_train, X_test, y_test = get_model_sets(
+        test_dataset, X_test, y_test = get_model_test_sets(
             version, observations, permutations,
             topography, land_use, population, height, roads,
             cams, era5, era5_land)
         
-        # Initialize and train the model
-        model = HistGradientBoostingRegressor()
-        model.fit(X_train, y_train)
-
-        # Save model
+        # Initialize the model
         model_path = Path(config['paths']['models'], f'{version}.joblib')
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        dump(model, model_path)
+        model = load(model_path)
 
         # Predict
         y_pred = model.predict(X_test)
+
+        # Evaluate the model
+        from sklearn.metrics import mean_squared_error, r2_score
+
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+
+        print(f'Root Mean Squared Error: {mse**0.5}')
+        print(f'R² Score: {r2}')
 
         print(f"It took {(time.time() - start)/60} minutes to train model version {version}")
         start = time.time()
