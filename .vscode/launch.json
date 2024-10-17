@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -12,28 +9,65 @@
             "console": "integratedTerminal",
             "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
         },
-
         {
-            "name": "Download EEA",
+            "name": "Train model",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/data/download/eea.py",
+            "module": "cams_downscaling.train_model",
             "console": "integratedTerminal",
-            "args": [
-                "--years", "2023",
-                "--countries", "ES"
-            ]
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
         },
-
-        // debug current file with args asked on the fly
         {
-            "name": "Debug current file",
+            "name": "Train model New",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cams_downscaling.train_model_new",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
+        },
+        {
+            "name": "Infer model",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cams_downscaling.infer_model",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
+        },
+        {
+            "name": "Infer model maps",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cams_downscaling.infer_model_maps",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
+        },
+        {
+            "name": "Infer model maps memory",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cams_downscaling.infer_model_maps_memory_problems",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/aquv/bin/python"
+        },
+        {
+            "name": "Diagrams",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "${command:pickArgs}",
             "python": "/home/urbanaq/miniforge3/envs/validator/bin/python"
+        },
+        {
+            "name": "Validator",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "/home/urbanaq/miniforge3/envs/validator/bin/python",
+            "args": ["--model_version", "2051",
+                    "--from", "20220101",
+                    "--countries", "ES", "PT",
+                    "--until", "20221231"]
         }
     ]
 }
